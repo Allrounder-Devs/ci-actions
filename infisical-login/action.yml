@@ -1,0 +1,31 @@
+name: 'Infisical Login'
+description: 'Loggt sich per Machine Identity (Universal Auth) bei Infisical ein. Setzt voraus, dass die Infisical CLI bereits installiert ist (siehe setup-infisical).'
+
+inputs:
+  client-id:
+    description: 'Machine Identity Client-ID.'
+    required: true
+  client-secret:
+    description: 'Machine Identity Client-Secret.'
+    required: true
+  domain:
+    description: 'URL der selbst gehosteten Infisical-Instanz.'
+    required: true
+
+outputs:
+  token:
+    description: 'Infisical Access Token (bereits per ::add-mask:: maskiert). Für infisical run/export als --token weiterreichen.'
+    value: ${{ steps.login.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - id: login
+      shell: bash
+      run: |
+        TOKEN=$(infisical login --method=universal-auth \
+          --client-id="${{ inputs.client-id }}" \
+          --client-secret="${{ inputs.client-secret }}" \
+          --domain="${{ inputs.domain }}" --plain --silent)
+        echo "::add-mask::$TOKEN"
+        echo "token=$TOKEN" >> "$GITHUB_OUTPUT"

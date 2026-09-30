@@ -1,0 +1,16 @@
+name: 'GHCR Login'
+description: 'Loggt den Runner bei ghcr.io ein.'
+
+inputs:
+  token:
+    description: 'Token für den Login. In der Regel der eingebaute GITHUB_TOKEN - kein extra Secret nötig.'
+    required: true
+  actor:
+    description: 'GHCR-Benutzername. In der Regel github.actor.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "${{ inputs.token }}" | docker login ghcr.io -u "${{ inputs.actor }}" --password-stdin

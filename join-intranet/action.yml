@@ -1,0 +1,25 @@
+name: 'Join Intranet'
+description: 'Verbindet den Runner per NetBird mit dem privaten Netz (turbo-svr und alles, was darüber erreichbar ist).'
+
+inputs:
+  setup-key:
+    description: 'NetBird Setup-Key. Muss im Dashboard als "Ephemeral" markiert sein, sonst bleibt nach jedem Lauf ein toter Peer zurück.'
+    required: true
+  management-url:
+    description: 'URL der selbst gehosteten NetBird Management Service.'
+    required: true
+  hostname:
+    description: 'Name, unter dem der Runner im NetBird-Dashboard erscheint. Leer = Standard der Action.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # Alemiz112/netbird-connect v1.0.2, per Commit-SHA gepinnt statt per Tag - ein Tag kann
+    # nachträglich auf einen anderen Commit verschoben werden, ein SHA nicht.
+    - uses: Alemiz112/netbird-connect@fbea46300ca7ee907ff7d8e39ede3f556a6ecf10
+      with:
+        setup-key: ${{ inputs.setup-key }}
+        management-url: ${{ inputs.management-url }}
+        hostname: ${{ inputs.hostname }}

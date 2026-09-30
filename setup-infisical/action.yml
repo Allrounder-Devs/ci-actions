@@ -1,0 +1,26 @@
+name: 'Setup Infisical CLI'
+description: 'Installiert die Infisical CLI aus einem gepinnten Release-Tarball.'
+
+inputs:
+  version:
+    description: 'Infisical CLI Version.'
+    required: false
+    default: '0.43.123'
+
+runs:
+  using: composite
+  steps:
+    # Bewusst ohne apt: Infisicals eigenes apt-Setup-Skript richtet ein Repository ein und
+    # installiert daraus - das ist auf GitHub-Runnern wiederholt in die dpkg-Sperre von
+    # unattended-upgrades gelaufen, und zwar wortlos (mal lief es, mal nicht, je nachdem ob
+    # der tägliche apt-Job gerade aktiv war). Das Tarball enthält die fertige Binärdatei,
+    # kein Repository, keine Sperre.
+    - shell: bash
+      env:
+        INFISICAL_CLI_VERSION: ${{ inputs.version }}
+      run: |
+        curl -fsSL -o /tmp/infisical.tar.gz \
+          "https://github.com/Infisical/cli/releases/download/v${INFISICAL_CLI_VERSION}/cli_${INFISICAL_CLI_VERSION}_linux_amd64.tar.gz"
+        tar -xzf /tmp/infisical.tar.gz -C /tmp infisical
+        sudo install -m 0755 /tmp/infisical /usr/local/bin/infisical
+        infisical --version
