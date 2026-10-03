@@ -1,0 +1,101 @@
+# Testet die Actions in diesem Repo, ohne dass ein Projekt-Repo (Rinhana, Hub) etwas davon
+# merkt: kein Commit und kein Lauf in deren Verlauf.
+#
+# Nur von Hand startbar. Das Repo ist public - ein Lauf mit Secrets darf nicht von Fremden
+# ausgeloest werden koennen, deshalb gibt es weder push noch pull_request als Ausloeser.
+#
+# Die Logs sind ebenfalls oeffentlich. Darum geben die Schritte nichts Internes aus: keine
+# Peer-Liste, keine Hostnamen, keine URLs.
+#
+# Benoetigte Secrets (nur fuer den Job "intranet"):
+#   NETBIRD_SETUP_KEY       Setup-Key, im Dashboard als "Ephemeral" angelegt
+#   NETBIRD_MANAGEMENT_URL  https://<management-domain>
+#   INTRANET_TEST_URL       Eine interne URL, die 200 liefern muss (z. B. der Status-Endpunkt
+#                           von Infisical)
+#
+#   gh workflow run test.yml -R Allrounder-Devs/ci-actions
+#   gh run watch -R Allrounder-Devs/ci-actions
+
+name: Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      intranet:
+        description: "Auch NetBird-Join und Intranet-Zugriff testen (braucht die drei Secrets)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  ohne-netz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup-infisical
+        uses: ./setup-infisical
+
+      - name: Infisical CLI vorhanden?
+        run: infisical --version
+
+      - name: ghcr-login
+        uses: ./ghcr-login
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          actor: ${{ github.actor }}
+
+      - name: Login in der Docker-Konfiguration?
+        run: grep -q '"ghcr.io"' ~/.docker/config.json
+
+      - name: Abmelden
+        if: always()
+        run: docker logout ghcr.io
+
+  intranet:
+    if: ${{ inputs.intranet }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Die NetBird-Action wartet ohne eigenes Limit auf "Management: Connected". Faellt der
+      # Server aus, haengt der Lauf sonst bis zum 6-Stunden-Limit des Jobs.
+      - name: join-intranet
+        timeout-minutes: 5
+        uses: ./join-intranet
+        with:
+          setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
+          management-url: ${{ secrets.NETBIRD_MANAGEMENT_URL }}
+          hostname: ci-test-${{ github.run_id }}
+
+      # "Management: Connected" allein beweist nichts: Fehlt die Policy, sieht jeder Peer 0
+      # andere Peers und kommt trotzdem nirgends hin.
+      - name: Verbunden und Peers sichtbar?
+        run: |
+          sudo netbird status | grep -E '^(Management|Signal|Peers count)'
+          total=$(sudo netbird status | sed -n 's|^Peers count: [0-9]*/\([0-9]*\).*|\1|p')
+          [ "${total:-0}" -gt 0 ] || { echo "::error::Keine Peers sichtbar - Policy im Dashboard pruefen"; exit 1; }
+
+      - name: Interne Domain aufloesbar und erreichbar?
+        env:
+          URL: ${{ secrets.INTRANET_TEST_URL }}
+        run: |
+          host="${URL#*://}"; host="${host%%/*}"
+          echo "::add-mask::$host"
+          for i in $(seq 1 20); do
+            getent hosts "$host" >/dev/null && break
+            sleep 3
+          done
+          getent hosts "$host" >/dev/null || { echo "::error::Interne Domain nicht aufloesbar - Nameserver-Gruppe in NetBird pruefen"; exit 1; }
+          code=$(curl -s -o /dev/null -m 15 -w '%{http_code}' "$URL")
+          echo "HTTP-Status: $code"
+          [ "$code" = "200" ]
+
+      - name: Abmelden
+        if: always()
+        run: sudo netbird down || true

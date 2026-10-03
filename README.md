@@ -26,6 +26,7 @@ zur Laufzeit aus GitHub Secrets bzw. Infisical.
 
 ```yaml
 - name: Join Intranet
+  timeout-minutes: 5   # die NetBird-Action wartet sonst ohne Limit auf den Server
   uses: Allrounder-Devs/ci-actions/join-intranet@main
   with:
     setup-key: ${{ secrets.NETBIRD_SETUP_KEY }}
