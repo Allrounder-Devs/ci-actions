@@ -23,3 +23,16 @@ runs:
         setup-key: ${{ inputs.setup-key }}
         management-url: ${{ inputs.management-url }}
         hostname: ${{ inputs.hostname }}
+
+    # Die Action meldet "fertig", sobald der Server verbunden ist. Die Peer-Liste trifft erst
+    # ein bis zwei Sekunden spaeter ein (gemessen: 0 Peers nach 0 s, 23 nach 2 s). Wer sofort
+    # danach das Netz nutzt, sieht noch keinen Peer. Darum hier warten, bis die Liste da ist.
+    - shell: bash
+      run: |
+        for i in $(seq 1 30); do
+          total=$(sudo netbird status | sed -n 's|^Peers count: [0-9]*/\([0-9]*\).*|\1|p')
+          [ "${total:-0}" -gt 0 ] && exit 0
+          sleep 2
+        done
+        echo "::error::NetBird verbunden, aber nach 60 s keine Peer-Liste - Policy und Gruppen des Peers im Dashboard pruefen"
+        exit 1

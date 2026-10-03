@@ -41,7 +41,7 @@ zur Laufzeit aus GitHub Secrets bzw. Infisical.
   with:
     client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
     client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
-    domain: https://infisical.turbo-svr.int.allrounder.dev
+    domain: https://<infisical-domain>
 
 - name: GHCR Login
   uses: Allrounder-Devs/ci-actions/ghcr-login@main
@@ -54,7 +54,7 @@ zur Laufzeit aus GitHub Secrets bzw. Infisical.
 - name: Export runtime secrets
   run: |
     infisical export --token="${{ steps.infisical.outputs.token }}" \
-      --domain="https://infisical.turbo-svr.int.allrounder.dev" \
+      --domain="https://<infisical-domain>" \
       --projectId="<projekt-id>" --env="prod" --path="/" \
       --format=dotenv-export > /tmp/app.env
 ```
@@ -68,10 +68,24 @@ einen Release-Tag umstellen und den in den Projekten pinnen.
 `join-intranet` bindet `Alemiz112/netbird-connect` selbst nicht per Tag, sondern per
 Commit-SHA ein (Stand: `v1.0.2`) - ein Tag lässt sich nachträglich verschieben, ein SHA nicht.
 
-## Voraussetzung: NetBird-Management-Server
+## Voraussetzung: NetBird
 
-`join-intranet` setzt eine laufende, selbst gehostete NetBird-Management-Instanz voraus. Die
-gibt es auf turbo-svr aktuell noch **nicht** - das ist Teil des geplanten, aber noch nicht
-begonnenen Umstiegs von Tailscale auf NetBird. Bis dahin bleibt der bestehende
-`tailscale/github-action@v3`-Schritt in Rinhana/Hub unverändert; `join-intranet` erst
-einbinden, wenn NetBird tatsächlich läuft.
+`join-intranet` setzt eine laufende, selbst gehostete NetBird-Instanz voraus, in der der
+Setup-Key als **Ephemeral** angelegt ist (sonst bleibt nach jedem Lauf ein toter Peer zurück).
+Die Action wartet nach dem Beitritt, bis die Peer-Liste da ist (höchstens 60 s) - direkt nach dem
+Beitritt ist sie kurz noch leer.
+
+Rinhana und Hub nutzen bis zur Umstellung weiter `tailscale/github-action@v3`.
+
+## Test
+
+[`.github/workflows/test.yml`](.github/workflows/test.yml) prüft die Actions in diesem Repo, ohne
+dass ein Projekt etwas davon merkt: Infisical-CLI, GHCR-Login, NetBird-Beitritt, Peer-Liste und
+eine interne URL. Nur von Hand startbar (das Repo ist public):
+
+```
+gh workflow run test.yml -R Allrounder-Devs/ci-actions
+```
+
+Für den Job `intranet` müssen die Secrets `NETBIRD_SETUP_KEY`, `NETBIRD_MANAGEMENT_URL` und
+`INTRANET_TEST_URL` im Repo gesetzt sein.
