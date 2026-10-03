@@ -73,13 +73,22 @@ jobs:
           management-url: ${{ secrets.NETBIRD_MANAGEMENT_URL }}
           hostname: ci-test-${{ github.run_id }}
 
-      # "Management: Connected" allein beweist nichts: Fehlt die Policy, sieht jeder Peer 0
-      # andere Peers und kommt trotzdem nirgends hin.
+      # "Management: Connected" kommt gleich nach dem Login, die Peer-Liste trifft erst einen
+      # Moment spaeter ein. Ein einmaliger Blick direkt nach dem Beitritt sieht deshalb 0/0,
+      # auch wenn alles in Ordnung ist. Also bis zu 60 s warten und den Verlauf ausgeben
+      # (nur Zahlen, das Log ist oeffentlich). Bleibt es auch dann bei 0, fehlt wirklich die
+      # Berechtigung (Policy) oder der Peer bekommt keine Liste.
       - name: Verbunden und Peers sichtbar?
         run: |
-          sudo netbird status | grep -E '^(Management|Signal|Peers count)'
-          total=$(sudo netbird status | sed -n 's|^Peers count: [0-9]*/\([0-9]*\).*|\1|p')
-          [ "${total:-0}" -gt 0 ] || { echo "::error::Keine Peers sichtbar - Policy im Dashboard pruefen"; exit 1; }
+          sudo netbird status | grep -E '^(Management|Signal)'
+          total=0
+          for i in $(seq 1 30); do
+            total=$(sudo netbird status | sed -n 's|^Peers count: [0-9]*/\([0-9]*\).*|\1|p')
+            echo "nach $(( (i - 1) * 2 )) s: ${total:-0} Peers in der Liste"
+            [ "${total:-0}" -gt 0 ] && break
+            sleep 2
+          done
+          [ "${total:-0}" -gt 0 ] || { echo "::error::Auch nach 60 s keine Peers - Policy und Gruppen des Peers im Dashboard pruefen"; exit 1; }
 
       - name: Interne Domain aufloesbar und erreichbar?
         env:
